@@ -1,6 +1,7 @@
 import os
 from fastapi import APIRouter, HTTPException, Query, Body
 from sqlalchemy import create_engine, inspect, text
+from datetime import datetime
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 from typing import Any, Dict
@@ -29,14 +30,17 @@ router = APIRouter()
 DB_DETAILS = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": 3306,
-    "database": "dbName",
-    "user": "user_name",
+    "database": "dbname",
+    "user": "username",
     "password": "password",
 }
 
 # Create an engine and session
 engine = get_db_connection(**DB_DETAILS)
 Session = sessionmaker(bind=engine)
+
+class SoftDeletePayload(BaseModel):
+    deleted_by_guid: int
 
 @router.get("/test")
 def test_db_connection():
@@ -108,54 +112,152 @@ def get_all_records(table_name: str, page: int = Query(1, ge=1), limit: int = Qu
 def create_record(table_name: str, record: Dict[str, Any] = Body(...)):
     """Insert a new record into the table"""
     session = Session()
-    columns = ", ".join(record.keys())
-    values = ", ".join([f"'{value}'" for value in record.values()])
     try:
-        query = f"INSERT INTO {table_name} ({columns}) VALUES ({values})"
-        session.execute(query)
+        # Create placeholders for the values
+        columns = ", ".join(record.keys())
+        placeholders = ", ".join([f":{key}" for key in record.keys()])
+        
+        # Create the query using text()
+        query = text(f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})")
+        
+        # Execute with parameters
+        session.execute(query, record)
         session.commit()
+        
         return {"message": f"Record added to {table_name}"}
+    
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Error inserting record: {str(e)}")
+    
+    finally:
+        session.close()
 
 @router.put("/base/{table_name}/{record_id}")
 def update_record(table_name: str, record_id: int, record: Dict[str, Any] = Body(...)):
     """Update an existing record in the table"""
     session = Session()
-    set_clause = ", ".join([f"{key}='{value}'" for key, value in record.items()])
     try:
-        query = f"UPDATE {table_name} SET {set_clause} WHERE id = {record_id}"
-        session.execute(query)
+        # Create placeholders for the SET clause
+        set_clause = ", ".join([f"{key}=:{key}" for key in record.keys()])
+        
+        # Create the query using text()
+        query = text(f"UPDATE {table_name} SET {set_clause} WHERE id = :record_id")
+        
+        # Add record_id to the parameters
+        params = {**record, "record_id": record_id}
+        
+        # Execute with parameters
+        session.execute(query, params)
         session.commit()
+        
         return {"message": f"Record {record_id} updated in {table_name}"}
+    
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Error updating record: {str(e)}")
+    
+    finally:
+        session.close()
 
 @router.delete("/base/{table_name}/{record_id}")
+def soft_delete_record(
+    table_name: str, 
+    record_id: int,
+    payload: SoftDeletePayload = Body(...)
+):
+    """Soft delete a record by updating active, deleted flags and deletion metadata"""
+    session = Session()
+    try:
+        current_time = int(datetime.now().timestamp())
+        
+        query = text(f"""
+            UPDATE {table_name} 
+            SET active = 0, 
+                deleted = 1, 
+                deleted_by_guid = :deleted_by_guid,
+                deleted_at = :deleted_at
+            WHERE id = :record_id
+        """)
+        
+        params = {
+            "record_id": record_id,
+            "deleted_by_guid": payload.deleted_by_guid,
+            "deleted_at": current_time
+        }
+        
+        result = session.execute(query, params)
+        session.commit()
+        
+        if result.rowcount == 0:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Record {record_id} not found in {table_name}"
+            )
+            
+        return {
+            "message": f"Record {record_id} soft deleted from {table_name}",
+            "deleted_at": current_time,
+            "deleted_by": payload.deleted_by_guid
+        }
+    
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Error soft deleting record: {str(e)}")
+    
+    finally:
+        session.close()
+
+@router.delete("/base/{table_name}/{record_id}/hard")
 def delete_record(table_name: str, record_id: int):
     """Delete a record from the table by ID"""
     session = Session()
     try:
-        query = f"DELETE FROM {table_name} WHERE id = {record_id}"
-        session.execute(query)
+        # Create the query using text()
+        query = text(f"DELETE FROM {table_name} WHERE id = :record_id")
+        
+        # Execute with parameters
+        session.execute(query, {"record_id": record_id})
         session.commit()
+        
         return {"message": f"Record {record_id} deleted from {table_name}"}
+    
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Error deleting record: {str(e)}")
+    
+    finally:
+        session.close()
 
+# Why Patch method? Unlike PUT which typically requires sending the complete resource, PATCH is designed for partial updates
 @router.patch("/base/{table_name}/{record_id}")
 def patch_record(table_name: str, record_id: int, record: Dict[str, Any] = Body(...)):
     """Update specific fields of a record"""
     session = Session()
-    set_clause = ", ".join([f"{key}='{value}'" for key, value in record.items()])
     try:
-        query = f"UPDATE {table_name} SET {set_clause} WHERE id = {record_id}"
-        session.execute(query)
+        # Create placeholders for the SET clause
+        set_clause = ", ".join([f"{key}=:{key}" for key in record.keys()])
+        
+        # Create the query using text()
+        query = text(f"UPDATE {table_name} SET {set_clause} WHERE id = :record_id")
+        
+        # Add record_id to the parameters
+        params = {**record, "record_id": record_id}
+        
+        result = session.execute(query, params)
         session.commit()
+
+        if result.rowcount == 0:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Record {record_id} not found in {table_name}"
+            )
+            
         return {"message": f"Record {record_id} patched in {table_name}"}
+    
     except Exception as e:
         session.rollback()
         raise HTTPException(status_code=500, detail=f"Error patching record: {str(e)}")
+    
+    finally:
+        session.close()
