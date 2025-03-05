@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="api_bridge",
-    version="0.1.0",
+    version="0.1.1",
     description="A FastAPI-based CRUD API generator for MySQL databases",
     author="Venkat.R",
     author_email="ai.venkat.r@gmail.com",
