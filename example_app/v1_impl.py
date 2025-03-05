@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api_bridge.core import APIBridge
+from smart_api_bridge.core import APIBridge
 
 db_config = {
   "host": "localhost",
