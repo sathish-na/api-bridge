@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api_bridge import APIBridge
+from core import APIBridge
 
 # Multiple MySQL database configurations
 db_configs = {
