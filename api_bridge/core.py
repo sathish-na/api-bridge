@@ -110,8 +110,8 @@ class APIBridge:
         finally:
             session.close()
 
-    def soft_delete_record(self, db_name: str, table_name: str, record_id: int, payload: BaseModel = Body(...)):
-        session = self.sessions.get(db_name)()
+    def soft_delete_record(self, table_name: str, record_id: int, deleted_by_guid: int):
+        session = self.Session()
         try:
             current_time = int(datetime.now().timestamp())
 
@@ -126,7 +126,7 @@ class APIBridge:
 
             params = {
                 "record_id": record_id,
-                "deleted_by_guid": payload.deleted_by_guid,
+                "deleted_by_guid": deleted_by_guid,
                 "deleted_at": current_time
             }
 
@@ -142,7 +142,7 @@ class APIBridge:
             return {
                 "message": f"Record {record_id} soft deleted from {table_name}",
                 "deleted_at": current_time,
-                "deleted_by": payload.deleted_by_guid
+                "deleted_by": deleted_by_guid
             }
 
         except Exception as e:
