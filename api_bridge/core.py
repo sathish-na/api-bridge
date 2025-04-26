@@ -8,9 +8,9 @@ from typing import Any, Dict
 
 class APIBridge:
 
-    def __init__(self, db_configs: Dict[str, Dict[str, Any]], base_endpoint: str = "/api"):
+    def __init__(self, db_configs: Dict[str, Dict[str, Any]], base_path: str = "api"):
         self.db_configs = db_configs
-        self.base_endpoint = base_endpoint
+        self.base_endpoint = f"/{base_path.strip('/')}"
         self.engines = {}
         self.sessions = {}
         self.router = APIRouter()
