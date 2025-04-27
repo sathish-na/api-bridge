@@ -8,9 +8,9 @@ from typing import Any, Dict
 
 class APIBridge:
 
-    def __init__(self, db_configs: Dict[str, Dict[str, Any]], base_endpoint: str = "/api"):
+    def __init__(self, db_configs: Dict[str, Dict[str, Any]], base_path: str = "api"):
         self.db_configs = db_configs
-        self.base_endpoint = base_endpoint
+        self.base_endpoint = f"/{base_path.strip('/')}"
         self.engines = {}
         self.sessions = {}
         self.router = APIRouter()
@@ -97,7 +97,6 @@ class APIBridge:
     def get_all_records(self, db_name: str, table_name: str, page: int = Query(1, ge=1), limit: int = Query(10, ge=1)):
         table, _ = self._get_table_and_columns(db_name, table_name)
         offset = (page - 1) * limit
-
         try:
             with self.sessions.get(db_name)() as session:
                 query = select(table).limit(limit).offset(offset)
