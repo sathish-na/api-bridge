@@ -1,5 +1,8 @@
 from setuptools import setup, find_packages
 
+with open('README.md') as f:
+    long_description = f.read()
+
 setup(
     name="smart_api_bridge",
     version="0.1.2",
@@ -19,4 +22,6 @@ setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.7",
+    long_description=long_description,
+    long_description_content_type='text/markdown',
 )
