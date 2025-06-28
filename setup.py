@@ -5,7 +5,7 @@ with open('README.md') as f:
 
 setup(
     name="smart_api_bridge",
-    version="0.1.3",
+    version="0.1.4",
     description="A FastAPI-based CRUD API generator for MySQL databases",
     author="Venkat.R",
     author_email="ai.venkat.r@gmail.com",
